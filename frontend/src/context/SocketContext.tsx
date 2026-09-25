@@ -63,11 +63,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     refreshNotifications();
 
-    const socketInstance = io(window.location.origin, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-    });
+    const socketInstance = io(
+      import.meta.env.VITE_API_BASE_URL || window.location.origin,
+      {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+      });
 
     socketInstance.on('connect', () => {
       // Socket connected
