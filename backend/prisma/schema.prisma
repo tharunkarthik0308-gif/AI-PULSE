@@ -1,0 +1,337 @@
+// Prisma schema for MedCore Telemedicine & Contactless Health Monitoring Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String            @id @default(uuid())
+  email            String            @unique
+  password         String
+  role             String            @default("PATIENT") // PATIENT, DOCTOR, ADMIN
+  name             String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  patientProfile   PatientProfile?
+  doctorProfile    DoctorProfile?
+  notifications    Notification[]
+  sentMessages     ChatMessage[]
+  auditLogs        AuditLog[]
+}
+
+model PatientProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth        String?
+  gender             String?
+  phone              String?
+  emergencyContact   String?
+  preferredLanguage  String             @default("en") // en, ta, hi
+  bloodGroup         String?
+  allergies          String?
+  medicalConditions  String?
+  profileImage       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  scans              ScanReport[]
+  appointments       Appointment[]
+  medicalReports     MedicalReport[]
+  prescriptions      Prescription[]
+  medications        Medication[]
+  medicationLogs     MedicationLog[]
+  doctorNotes        DoctorNote[]
+  chatRooms          ChatRoom[]
+  timelineEvents     HealthTimelineEvent[]
+  voiceTriageSessions VoiceTriageSession[]
+}
+
+model DoctorProfile {
+  id                 String               @id @default(uuid())
+  userId             String               @unique
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty          String?
+  qualification      String?
+  experienceYears    Int?
+  clinicHospital     String?
+  languagesSpoken    String?              @default("English")
+  consultationModes  String               @default("VIDEO,CHAT")
+  consultationFee    Float                @default(0.0)
+  bio                String?
+  isVerified         Boolean              @default(true)
+  profileImage       String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  availabilities     DoctorAvailability[]
+  appointments       Appointment[]
+  doctorNotes        DoctorNote[]
+  prescriptions      Prescription[]
+  chatRooms          ChatRoom[]
+}
+
+model DoctorAvailability {
+  id                  String         @id @default(uuid())
+  doctorId            String
+  doctor              DoctorProfile  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek           Int?           // 0 = Sunday, 1 = Monday...
+  specificDate        String?        // YYYY-MM-DD
+  startTime           String         // e.g. "09:00"
+  endTime             String         // e.g. "17:00"
+  slotDurationMinutes Int            @default(30)
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model Appointment {
+  id              String         @id @default(uuid())
+  patientId       String
+  patient         PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId        String
+  doctor          DoctorProfile  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointmentDate String         // YYYY-MM-DD
+  startTime       String         // "10:00"
+  endTime         String         // "10:30"
+  status          String         @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED, REJECTED
+  type            String         @default("VIDEO") // VIDEO, CHAT, IN_PERSON
+  reason          String?
+  notes           String?
+  videoRoomId     String         @unique // unique room ID per appointment
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  prescriptions   Prescription[]
+  doctorNotes     DoctorNote[]
+  chatRoom        ChatRoom?
+  consultation    Consultation?
+}
+
+model Consultation {
+  id                 String       @id @default(uuid())
+  appointmentId      String       @unique
+  appointment        Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  videoRoomId        String
+  startTime          DateTime     @default(now())
+  endTime            DateTime?
+  durationSeconds    Int          @default(0)
+  status             String       @default("ACTIVE") // ACTIVE, COMPLETED, ABANDONED
+  doctorNotesSummary String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+}
+
+model ScanReport {
+  id                 String         @id @default(uuid())
+  patientId          String
+  patient            PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  timestamp          DateTime       @default(now())
+  estimatedHeartRate Float
+  stressLevel        String         // LOW, MODERATE, ELEVATED, HIGH
+  riskLevel          String         // NORMAL, EVALUATE, ATTENTION, HIGH_RISK
+  faceQuality        Float          // 0 - 100
+  signalQuality      Float          // 0 - 100
+  confidence         Float          // 0 - 100
+  scanDuration       Int            // seconds
+  algorithmVersion   String         @default("v1.2-rPPG-Chrominance")
+  waveformData       String?        // JSON pulse waveform samples for chart inspection
+  aiSummary          String?
+  doctorReviewed     Boolean        @default(false)
+  reviewedByDoctorId String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  measurements       ScreeningMeasurement[]
+}
+
+model ScreeningMeasurement {
+  id                 String      @id @default(uuid())
+  scanReportId       String
+  scanReport         ScanReport  @relation(fields: [scanReportId], references: [id], onDelete: Cascade)
+  frameIndex         Int
+  timestampMs        Int
+  greenValue         Float
+  chrominanceValue   Float
+  isPeak             Boolean     @default(false)
+  instantaneousHR    Float?
+  createdAt          DateTime    @default(now())
+}
+
+model MedicalReport {
+  id           String         @id @default(uuid())
+  patientId    String
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploadedById String
+  title        String
+  reportType   String         // LAB_TEST, SCAN, CLINICAL_DISCHARGE, SCREENING_SUMMARY, OTHER
+  fileUrl      String
+  fileName     String
+  fileType     String
+  fileSize     Int
+  notes        String?
+  reportDate   DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model DoctorNote {
+  id            String         @id @default(uuid())
+  doctorId      String
+  doctor        DoctorProfile  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  title         String
+  content       String
+  isPrivate     Boolean        @default(true) // Hidden from patients
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Prescription {
+  id               String             @id @default(uuid())
+  patientId        String
+  patient          PatientProfile     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId         String
+  doctor           DoctorProfile      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointmentId    String?
+  appointment      Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  clinicalNotes    String?
+  diagnosisContext String?
+  followUpDate     String?
+  pdfUrl           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  items            PrescriptionItem[]
+}
+
+model PrescriptionItem {
+  id              String       @id @default(uuid())
+  prescriptionId  String
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicationName  String
+  dosage          String
+  frequency       String
+  durationDays    Int
+  instructions    String?
+  createdAt       DateTime     @default(now())
+}
+
+model Medication {
+  id           String          @id @default(uuid())
+  patientId    String
+  patient      PatientProfile  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  name         String
+  dosage       String
+  frequency    String
+  timesOfDay   String          // JSON array e.g. ["08:00", "20:00"]
+  startDate    String          // YYYY-MM-DD
+  endDate      String?
+  instructions String?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  logs         MedicationLog[]
+}
+
+model MedicationLog {
+  id            String         @id @default(uuid())
+  medicationId  String
+  medication    Medication     @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  scheduledDate String         // YYYY-MM-DD
+  scheduledTime String         // "08:00"
+  status        String         // TAKEN, SKIPPED, MISSED
+  takenAt       DateTime?
+  notes         String?
+  createdAt     DateTime       @default(now())
+}
+
+model ChatRoom {
+  id            String         @id @default(uuid())
+  patientId     String
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId      String
+  doctor        DoctorProfile  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointmentId String?        @unique
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  messages      ChatMessage[]
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  chatRoomId String
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderRole String   // PATIENT, DOCTOR
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // HIGH_RISK_SCREENING, APPOINTMENT_CONFIRMED, APPOINTMENT_REMINDER, etc.
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  metadata  String?  // JSON data
+  createdAt DateTime @default(now())
+}
+
+model HealthTimelineEvent {
+  id          String         @id @default(uuid())
+  patientId   String
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  eventType   String         // FACE_SCAN, APPOINTMENT, VIDEO_CONSULTATION, REPORT, PRESCRIPTION, MEDICATION_LOG, DOCTOR_NOTE, VOICE_TRIAGE
+  title       String
+  summary     String
+  referenceId String?
+  isDoctorOnly Boolean       @default(false)
+  eventDate   DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+}
+
+model VoiceTriageSession {
+  id                 String          @id @default(uuid())
+  patientId          String?
+  patient            PatientProfile? @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  language           String          // en, ta, hi
+  rawTranscript      String
+  symptomsDetected   String          // JSON array
+  urgencyLevel       String          // ROUTINE, MEDICAL_ATTENTION, URGENT_EVALUATION
+  urgencyLabel       String
+  explanation        String
+  recommendedAction  String
+  createdAt          DateTime        @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // LOGIN, LOGOUT, REGISTER, VIEW_PATIENT, ISSUE_PRESCRIPTION, SAVE_SCAN, UPLOAD_REPORT, etc.
+  resource   String   // PATIENT_RECORD, SCAN_REPORT, PRESCRIPTION, etc.
+  resourceId String?
+  ipAddress  String?
+  details    String?  // JSON string
+  timestamp  DateTime @default(now())
+}
