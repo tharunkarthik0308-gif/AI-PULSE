@@ -393,7 +393,7 @@ export const AppointmentsPage: React.FC = () => {
 
                     <div className="pt-2 border-t border-surface-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        {appt.status === 'CONFIRMED' && (
+                        {['CONFIRMED', 'IN_PROGRESS'].includes(appt.status) && (
                           <Link
                             to={`/consultation/${appt.id}`}
                             className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-clinical-600 hover:bg-clinical-700 rounded-lg shadow-subtle transition-colors"

@@ -40,7 +40,7 @@ export const getMyDashboardData = async (req: AuthenticatedRequest, res: Respons
       where: {
         patientId: patient.id,
         appointmentDate: { gte: today },
-        status: { in: ['CONFIRMED', 'PENDING'] },
+        status: { in: ['CONFIRMED', 'IN_PROGRESS', 'PENDING'] },
       },
       include: {
         doctor: {
