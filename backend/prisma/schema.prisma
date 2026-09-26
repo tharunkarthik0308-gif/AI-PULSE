@@ -123,6 +123,7 @@ model Appointment {
   reason          String?
   notes           String?
   videoRoomId     String         @unique // unique room ID per appointment
+  isArchived      Boolean        @default(false)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 

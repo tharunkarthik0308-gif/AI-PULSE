@@ -181,6 +181,14 @@ export const api = {
     return handleResponse(res);
   },
 
+  removeAppointmentRecord: async (id: string) => {
+    const res = await fetch(`${API_BASE}/appointments/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
   // Scans
   saveScan: async (payload: any) => {
     const res = await fetch(`${API_BASE}/scans`, {

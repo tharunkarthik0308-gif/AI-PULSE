@@ -137,7 +137,9 @@ export const getMyAppointments = async (req: AuthenticatedRequest, res: Response
     }
 
     const { status, date } = req.query;
-    const whereClause: any = {};
+    const whereClause: any = {
+      isArchived: false,
+    };
 
     if (req.user.role === 'PATIENT' && req.user.patientProfileId) {
       whereClause.patientId = req.user.patientProfileId;
@@ -534,5 +536,67 @@ export const getConsultationSession = async (req: AuthenticatedRequest, res: Res
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Error retrieving consultation session.', error: error.message });
+  }
+};
+
+export const removeAppointmentRecord = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Not authenticated.' });
+      return;
+    }
+
+    if (req.user.role !== 'DOCTOR' || !req.user.doctorProfileId) {
+      res.status(403).json({
+        success: false,
+        message: 'Forbidden. Only authenticated doctors can remove appointment records.',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!appointment || appointment.doctorId !== req.user.doctorProfileId) {
+      res.status(404).json({
+        success: false,
+        message: 'Appointment not found or does not belong to this doctor.',
+      });
+      return;
+    }
+
+    // Soft-delete / archive appointment so all related consultations, prescriptions, reports, and clinical history remain intact
+    await prisma.appointment.update({
+      where: { id },
+      data: { isArchived: true },
+    });
+
+    await recordAuditLog({
+      userId: req.user.userId,
+      action: 'REMOVE_APPOINTMENT_RECORD',
+      resource: 'Appointment',
+      resourceId: appointment.id,
+      ipAddress: req.ip || req.socket.remoteAddress || undefined,
+      details: {
+        doctorId: req.user.doctorProfileId,
+        patientId: appointment.patientId,
+        appointmentDate: appointment.appointmentDate,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Appointment record removed from doctor appointment history successfully.',
+    });
+  } catch (error: any) {
+    console.error('Error removing appointment record:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error removing appointment record.',
+      error: error.message,
+    });
   }
 };

@@ -7,6 +7,7 @@ import {
   startConsultation,
   endConsultation,
   getConsultationSession,
+  removeAppointmentRecord,
 } from '../controllers/appointmentController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -19,5 +20,6 @@ router.get('/:id/room', authenticate, getAppointmentRoom);
 router.post('/:id/consultation/start', authenticate, startConsultation);
 router.post('/:id/consultation/end', authenticate, endConsultation);
 router.get('/:id/consultation', authenticate, getConsultationSession);
+router.delete('/:id', authenticate, removeAppointmentRecord);
 
 export default router;

@@ -14,6 +14,8 @@ import {
   MessageSquare,
   DollarSign,
   Briefcase,
+  MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -38,6 +40,12 @@ export const AppointmentsPage: React.FC = () => {
   const [doctorsLoading, setDoctorsLoading] = useState(false);
   const [doctorsError, setDoctorsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'my_appointments' | 'book_doctor'>(initialTab);
+
+  // Appointment removal states
+  const [removingAppointment, setRemovingAppointment] = useState<any | null>(null);
+  const [isRemoving, setIsRemoving] = useState<boolean>(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Sync tab with URL search parameter if changed externally
   useEffect(() => {
@@ -101,6 +109,25 @@ export const AppointmentsPage: React.FC = () => {
       fetchAppointments();
     } catch (err) {
       console.error('Error updating appointment:', err);
+    }
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!removingAppointment) return;
+    try {
+      setIsRemoving(true);
+      const res = await api.removeAppointmentRecord(removingAppointment.id);
+      if (res.success) {
+        setRemovingAppointment(null);
+        setSuccessMessage('Appointment record removed from doctor appointment history successfully.');
+        setTimeout(() => setSuccessMessage(null), 4000);
+        fetchAppointments();
+      }
+    } catch (err: any) {
+      console.error('Error removing appointment record:', err);
+      alert(err.message || 'Failed to remove appointment record.');
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -181,6 +208,22 @@ export const AppointmentsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Success Notification */}
+      {successMessage && (
+        <div className="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium shadow-subtle animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-emerald-600 hover:text-emerald-800 p-0.5 rounded text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Booking Modal */}
       {selectedDoctor && (
@@ -347,24 +390,61 @@ export const AppointmentsPage: React.FC = () => {
                     className="bg-white border border-surface-200 rounded-2xl p-5 shadow-subtle flex flex-col justify-between space-y-4"
                   >
                     <div>
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="font-bold text-sm text-surface-900">{partnerName}</h3>
                           <p className="text-xs text-surface-500">{partnerSub}</p>
                         </div>
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-                            appt.status === 'CONFIRMED'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : appt.status === 'PENDING'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : appt.status === 'COMPLETED'
-                              ? 'bg-teal-50 text-teal-700 border-teal-200'
-                              : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}
-                        >
-                          {appt.status}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
+                              appt.status === 'CONFIRMED'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : appt.status === 'PENDING'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : appt.status === 'COMPLETED'
+                                ? 'bg-teal-50 text-teal-700 border-teal-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                          >
+                            {appt.status}
+                          </span>
+
+                          {isDoctor && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setActiveMenuId(activeMenuId === appt.id ? null : appt.id)}
+                                className="p-1 rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 transition-colors"
+                                aria-label="Appointment options"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+
+                              {activeMenuId === appt.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={() => setActiveMenuId(null)}
+                                  />
+                                  <div className="absolute right-0 top-8 z-20 w-40 bg-white border border-surface-200 rounded-xl shadow-lg p-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        setRemovingAppointment(appt);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Remove Record</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-4 text-xs text-surface-600 mt-3 pt-3 border-t border-surface-100">
@@ -559,6 +639,74 @@ export const AppointmentsPage: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Remove Appointment Record Confirmation Modal */}
+      {removingAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-surface-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-surface-100">
+              <h3 className="text-base font-bold text-surface-900">Remove Appointment Record?</h3>
+              <button
+                type="button"
+                onClick={() => setRemovingAppointment(null)}
+                disabled={isRemoving}
+                className="text-surface-400 hover:text-surface-600 p-1 rounded-lg text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-surface-600 leading-relaxed">
+              This will remove this appointment from the doctor's appointment history. This action should only affect the appointment record itself and must not delete the patient account or unrelated clinical records.
+            </p>
+
+            <div className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-xs space-y-1.5 text-surface-700">
+              <div className="flex justify-between">
+                <span className="text-surface-500">Patient:</span>
+                <span className="font-semibold text-surface-900">
+                  {removingAppointment.patient?.user?.name || 'Patient'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Date & Time:</span>
+                <span className="font-semibold text-surface-900">
+                  {removingAppointment.appointmentDate} • {removingAppointment.startTime}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-surface-500">Type & Status:</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="uppercase text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-200 text-surface-800">
+                    {removingAppointment.type}
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-200 text-surface-800">
+                    {removingAppointment.status}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRemovingAppointment(null)}
+                disabled={isRemoving}
+                className="px-4 py-2 text-xs font-semibold text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemove}
+                disabled={isRemoving}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isRemoving ? 'Removing...' : 'Remove Record'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
