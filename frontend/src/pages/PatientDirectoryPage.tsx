@@ -6,13 +6,9 @@ import {
   HeartPulse,
   Calendar,
   ArrowRight,
-  ShieldAlert,
-  Clock,
-  Plus,
-  FileText,
-  Activity,
   AlertCircle,
-  TrendingUp,
+  MoreVertical,
+  X,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +23,9 @@ export const PatientDirectoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [removingPatient, setRemovingPatient] = useState<any | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const fetchPatients = async (search?: string) => {
     try {
@@ -59,6 +58,21 @@ export const PatientDirectoryPage: React.FC = () => {
     const ageDate = new Date(diffMs);
     const age = Math.abs(ageDate.getUTCFullYear() - 1970);
     return `${age} yrs (${dobString})`;
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!removingPatient) return;
+    try {
+      setIsRemoving(true);
+      await api.removePatientFromActiveCare(removingPatient.id);
+      setRemovingPatient(null);
+      fetchPatients(searchQuery);
+    } catch (err: any) {
+      console.error('Error removing patient from active care:', err);
+      setError(err.message || 'Failed to remove patient from active care.');
+    } finally {
+      setIsRemoving(false);
+    }
   };
 
   return (
@@ -175,18 +189,40 @@ export const PatientDirectoryPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <span className="text-[10px] font-semibold text-clinical-700 bg-clinical-50 px-2 py-0.5 rounded border border-clinical-200 shrink-0">
-                        {pat.bloodGroup || 'Blood: —'}
-                      </span>
-                    </div>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setActiveMenu(activeMenu === pat.id ? null : pat.id)
+                          }
+                          className="p-2 rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 transition-colors"
+                          aria-label={`More actions for ${pat.name}`}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
 
-                    {/* Allergies / Clinical note */}
-                    {pat.allergies && (
-                      <div className="mt-3 px-2.5 py-1 bg-rose-50 border border-rose-200/80 rounded-lg text-[11px] text-rose-700 flex items-center gap-1.5">
-                        <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">Allergies: {pat.allergies}</span>
+                        {activeMenu === pat.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => setActiveMenu(null)}
+                            />
+                            <div className="absolute right-0 top-10 z-20 w-48 bg-white border border-surface-200 rounded-xl shadow-lg p-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveMenu(null);
+                                  setRemovingPatient(pat);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              >
+                                Remove from Active Care
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    )}
+                    </div>
 
                     {/* Status grid */}
                     <div className="mt-3 pt-3 border-t border-surface-100 grid grid-cols-2 gap-2 text-[11px]">
@@ -202,11 +238,10 @@ export const PatientDirectoryPage: React.FC = () => {
                               <span>{latestScan.estimatedHeartRate} BPM</span>
                             </div>
                             <span
-                              className={`inline-block mt-0.5 text-[9px] font-semibold px-1 py-0.2 rounded uppercase ${
-                                latestScan.riskLevel === 'NORMAL'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-rose-100 text-rose-800'
-                              }`}
+                              className={`inline-block mt-0.5 text-[9px] font-semibold px-1 py-0.2 rounded uppercase ${latestScan.riskLevel === 'NORMAL'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                                }`}
                             >
                               {latestScan.riskLevel}
                             </span>
@@ -245,22 +280,15 @@ export const PatientDirectoryPage: React.FC = () => {
                   {/* Actions Bar */}
                   <div className="pt-2 border-t border-surface-100 flex items-center justify-between gap-2">
                     <Link
-                      to={`/prescriptions?patientId=${pat.id}`}
-                      className="px-2.5 py-1.5 text-[11px] font-semibold text-surface-700 bg-surface-50 hover:bg-surface-100 border border-surface-200 rounded-lg transition-colors"
-                      title="Issue E-Prescription"
-                    >
-                      Issue Rx
-                    </Link>
-                    <Link
                       to={`/analysis?patientId=${pat.id}`}
-                      className="px-2.5 py-1.5 text-[11px] font-semibold text-surface-700 bg-surface-50 hover:bg-surface-100 border border-surface-200 rounded-lg transition-colors"
+                      className="px-3 py-1.5 text-xs font-semibold text-surface-700 bg-surface-50 hover:bg-surface-100 border border-surface-200 rounded-lg transition-colors"
                       title="AI Health Analysis"
                     >
                       AI Analysis
                     </Link>
                     <Link
                       to={`/doctor/patients/${pat.id}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-clinical-600 hover:bg-clinical-700 rounded-lg shadow-subtle transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-clinical-600 hover:bg-clinical-700 rounded-lg shadow-subtle transition-colors"
                     >
                       <span>Dossier</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -269,6 +297,51 @@ export const PatientDirectoryPage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Remove from Active Care Confirmation Modal */}
+      {removingPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-surface-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-surface-100">
+              <h3 className="text-base font-bold text-surface-900">Remove from Active Care</h3>
+              <button
+                type="button"
+                onClick={() => setRemovingPatient(null)}
+                className="text-surface-400 hover:text-surface-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-surface-600">
+              Are you sure you want to remove <span className="font-bold text-surface-900">{removingPatient.name}</span> from your active care cohort?
+            </p>
+
+            <div className="bg-surface-50 border border-surface-200 rounded-xl p-3 text-xs text-surface-500">
+              This action only removes the patient from your active roster. Their clinical history, past consultations, vitals, and records will remain safely intact in the database.
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRemovingPatient(null)}
+                disabled={isRemoving}
+                className="px-4 py-2 text-xs font-semibold text-surface-700 bg-surface-100 hover:bg-surface-200 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemove}
+                disabled={isRemoving}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isRemoving ? 'Removing...' : 'Remove Patient'}
+              </button>
+            </div>
           </div>
         </div>
       )}

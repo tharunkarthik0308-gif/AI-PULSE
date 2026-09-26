@@ -88,6 +88,17 @@ export const api = {
     return handleResponse(res);
   },
 
+  removePatientFromActiveCare: async (patientId: string) => {
+    const res = await fetch(
+      `${API_BASE}/doctors/patients/${patientId}/active-care`,
+      {
+        method: 'DELETE',
+        headers: getHeaders(),
+      }
+    );
+    return handleResponse(res);
+  },
+
   listDoctors: async (params?: { specialty?: string; language?: string }) => {
     const query = new URLSearchParams(params as any).toString();
     const res = await fetch(`${API_BASE}/doctors${query ? `?${query}` : ''}`, {

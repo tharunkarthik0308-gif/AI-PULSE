@@ -51,6 +51,7 @@ model PatientProfile {
   chatRooms          ChatRoom[]
   timelineEvents     HealthTimelineEvent[]
   voiceTriageSessions VoiceTriageSession[]
+  doctorPatients     DoctorPatient[]
 }
 
 model DoctorProfile {
@@ -75,6 +76,23 @@ model DoctorProfile {
   doctorNotes        DoctorNote[]
   prescriptions      Prescription[]
   chatRooms          ChatRoom[]
+    doctorPatients     DoctorPatient[]
+}
+
+model DoctorPatient {
+  id        String        @id @default(uuid())
+  doctorId  String
+  patientId String
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  doctor  DoctorProfile  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, patientId])
+  @@index([doctorId, isActive])
+  @@index([patientId, isActive])
 }
 
 model DoctorAvailability {

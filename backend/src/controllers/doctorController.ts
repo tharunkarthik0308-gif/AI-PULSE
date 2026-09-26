@@ -235,6 +235,65 @@ export const setDoctorAvailability = async (req: AuthenticatedRequest, res: Resp
   }
 };
 
+export const removePatientFromActiveCare = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'DOCTOR' || !req.user.doctorProfileId) {
+      res.status(403).json({
+        success: false,
+        message: 'Only authorized doctors can remove patients from active care.',
+      });
+      return;
+    }
+
+    const { patientId } = req.params;
+    const doctorId = req.user.doctorProfileId;
+
+    const relationship = await prisma.doctorPatient.findUnique({
+      where: {
+        doctorId_patientId: {
+          doctorId,
+          patientId,
+        },
+      },
+    });
+
+    if (!relationship) {
+      res.status(404).json({
+        success: false,
+        message: 'Patient is not in your active care list.',
+      });
+      return;
+    }
+
+    await prisma.doctorPatient.update({
+      where: {
+        doctorId_patientId: {
+          doctorId,
+          patientId,
+        },
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Patient removed from active care.',
+    });
+  } catch (error: any) {
+    console.error('Error removing patient from active care:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error removing patient from active care.',
+      error: error.message,
+    });
+  }
+};
+
 export const getDoctorPatients = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user || req.user.role !== 'DOCTOR' || !req.user.doctorProfileId) {
@@ -246,13 +305,18 @@ export const getDoctorPatients = async (req: AuthenticatedRequest, res: Response
     const doctorId = req.user.doctorProfileId;
 
     // Retrieve unique patient IDs who have had or have appointments with this specific doctor
-    const distinctAppointments = await prisma.appointment.findMany({
-      where: { doctorId },
-      select: { patientId: true },
-      distinct: ['patientId'],
+    // Retrieve only patients currently in this doctor's active care list
+    const activeDoctorPatients = await prisma.doctorPatient.findMany({
+      where: {
+        doctorId,
+        isActive: true,
+      },
+      select: {
+        patientId: true,
+      },
     });
 
-    const patientIds = distinctAppointments.map((a) => a.patientId);
+    const patientIds = activeDoctorPatients.map((relationship) => relationship.patientId);
 
     const whereClause: any = {
       id: { in: patientIds },
@@ -298,7 +362,9 @@ export const getDoctorPatients = async (req: AuthenticatedRequest, res: Response
     }));
 
     res.json({ success: true, patients, total: patients.length });
-  } catch (error: any) {
+  }
+
+  catch (error: any) {
     console.error('Error fetching doctor patient directory:', error);
     res.status(500).json({ success: false, message: 'Error fetching patient directory.', error: error.message });
   }
